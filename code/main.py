@@ -1,59 +1,38 @@
-
-import tkinter as tk
-from tkinter import messagebox
-from gpiozero import Button
+import RPi.GPIO as GPIO
+import time
 from picamera import PiCamera
-from datetime import datetime
-import os
 
-# Set up the camera
+# GPIO setup
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) # Button 1
+GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) # Button 2
+
+# Initialize camera
 camera = PiCamera()
 
-# Set up GPIO buttons
-take_picture_button = Button(2)  # Assuming the button is connected to GPIO pin 2
-exit_button = Button(3)  # Assuming the button is connected to GPIO pin 3
+def take_picture(channel):
+    # Take a picture
+    camera.capture('/home/pi/image.jpg')
+    print("Picture Taken")
 
-# Function to take a picture
-def take_picture():
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f'/media/usb/{timestamp}.jpg'
-    camera.capture(filename)
-    messagebox.showinfo("Success", "Picture taken successfully!")
-    return filename
+def refresh_camera(channel):
+    # Stop and start the preview for refresh
+    camera.stop_preview()
+    camera.start_preview()
+    print("Camera Refreshed")
 
-# Function to update the image on the GUI
-def update_image():
-    file_path = take_picture()
-    photo = tk.PhotoImage(file=file_path)
-    image_label.config(image=photo)
-    image_label.image = photo
+# Setup event detection
+GPIO.add_event_detect(17, GPIO.RISING, callback=take_picture, bouncetime=300)
+GPIO.add_event_detect(27, GPIO.RISING, callback=refresh_camera, bouncetime=300)
 
-# Function to exit the program
-def exit_program():
-    root.destroy()
+# Start camera preview
+camera.start_preview()
 
-# Setting up the GUI
-root = tk.Tk()
-root.title("Raspberry Pi Camera")
+# Keep the program running
+try:
+    while True:
+        time.sleep(1)
+except KeyboardInterrupt:
+    camera.stop_preview()
+    GPIO.cleanup()
 
-take_picture_btn = tk.Button(root, text="Take Picture", command=update_image)
-take_picture_btn.pack()
-
-image_label = tk.Label(root)
-image_label.pack()
-
-exit_btn = tk.Button(root, text="Exit", command=exit_program)
-exit_btn.pack()
-
-# Loop to check button press
-def check_button():
-    if take_picture_button.is_pressed:
-        update_image()
-    if exit_button.is_pressed:
-        exit_program()
-    root.after(100, check_button)
-
-check_button()
-
-# Run the application
-root.mainloop()
